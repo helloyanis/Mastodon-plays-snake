@@ -1,0 +1,1 @@
+{"width": 8, "height": 6, "snake": [[4, 5], [4, 6], [3, 6], [3, 5]], "direction": "LEFT", "alive": true, "fruit": [3, 7], "modifiers": {"wrap_edges": false}}
