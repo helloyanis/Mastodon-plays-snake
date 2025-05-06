@@ -1,6 +1,6 @@
 {
-    "instance": "https://mastodon.social",
-    "statusId": "",
-    "visibility": "direct",
+    "instance": "https://mstdn.social",
+    "statusId": "114461516958265906",
+    "visibility": "private",
     "delay": 300
 }

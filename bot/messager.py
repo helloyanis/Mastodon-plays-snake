@@ -13,24 +13,41 @@ class Messager:
             api_base_url=self.initData["instance"]
         )
         print("Logged in as " + self.mastodon.me().username)
+        if not self.mastodon.stream_healthy():
+            print("Stream is not healthy! Try restarting in a few minutes (previous stream might still be connected?!).")
+            return
         self.statusId = None
         self.statusVisibility = self.initData["visibility"]
         self.delay = self.initData["delay"]
+        self.snakeGame = SnakeGame(width=10, height=10, initial_length=3, modifiers=None, save_file="snake_game.json")
 
-        #Start the game if it is not already started
-        self.gameStatus = self.getGameStatus()
-        if self.gameStatus is None:
-            print("No game is happening, starting a new one...")
-            self.statusId = self.sendNewGameStatus()
-            # Write the status ID to the config file
-            # self.initData["statusId"] = self.statusId
-            # with open('config.json', 'w') as f:
-            #     json.dump(self.initData, f, indent=4)
-        else:
-            print("A game is already happening!")
-            self.statusId = self.gameStatus.id
-        print ("Game status ID: " + str(self.statusId))
-        print(self.waitAndGetPollResult())
+        while True:
+            #Start the game if it is not already started
+            self.gameStatus = self.getGameStatus()
+            if self.gameStatus is None:
+                print("No game is happening, starting a new one...")
+                self.statusId = self.sendNewGameStatus()
+                # Write the status ID to the config file
+                self.initData["statusId"] = self.statusId
+                with open('config.json', 'w') as f:
+                    json.dump(self.initData, f, indent=4)
+                # Update profile fields with the amount of games started
+                self.updateProfileFields(games_started_change=1, fruits_eaten_change=0)
+            else:
+                print("A game is already happening!")
+                self.statusId = self.gameStatus.id
+
+                #Edit the status with the current game state
+                self.mastodon.status_post("Vote below to play Snake!\n"+self.snakeGame.display(), visibility=self.initData["visibility"], poll=self.gameStatus.poll, id=self.statusId)
+            print ("Game status ID: " + str(self.statusId))
+
+            results = self.waitAndGetPollResult()
+            # Update the game state based on the poll results
+            self.updateProfileFields(games_started_change=1, fruits_eaten_change=0)
+            if results is not None:
+                self.moveSnake(results)
+                
+
     
     def getGameStatus(self):
         # Get the message the game is happening in. If it doesn't exist, return None
@@ -55,27 +72,80 @@ class Messager:
             options=["⤴️ Turn Left", "➡️ Go Forward", "⤵️ Turn Right"],
             expires_in=self.delay
         )
-        status = self.mastodon.status_post("A new game has started!", visibility=self.initData["visibility"], poll=poll) #TODO edit this
+        status = self.mastodon.status_post("Vote below to play Snake!\n"+self.snakeGame.display(), visibility=self.initData["visibility"], poll=poll) #TODO edit this
         self.statusId = status.id
         return status.id
     
     def waitAndGetPollResult(self):
         listener = PollListener(self.statusId)
         print("Listening for poll expiration...")
-        self.mastodon.stream_user(listener)
+        try:
+            self.mastodon.stream_user(listener)
+        except PollExpired:
+            return listener.result
+        return None
+
+    def updateProfileFields(self, games_started_change=1, fruits_eaten_change=0):
+        # Get the current fields
+        oldFields = self.mastodon.me().fields
+        if not oldFields or len(oldFields) < 2:
+            # If there are no fields or too few, initialize them
+            newFields = [
+                ("Games started", str(games_started_change)),
+                ("Total fruits eaten", str(fruits_eaten_change))
+            ]
+        else:
+            # Parse existing values
+            previousGamesStarted = int(oldFields[0]["value"])
+            previousFruitsEaten = int(oldFields[1]["value"])
+            newFields = [
+                ("Games started", str(previousGamesStarted + games_started_change)),
+                ("Total fruits eaten", str(previousFruitsEaten + fruits_eaten_change))
+            ]
+
+        self.mastodon.account_update_credentials(fields=newFields)
+
+    def moveSnake(self, results):
+        # Move the snake based on the poll results
+        print("Poll results:")
+        for option in results['options']:
+            print(f"{option['title']}: {option['votes_count']} votes")
+        # Get the direction with the most votes
+        max_votes = max(option['votes_count'] for option in results['options'])
+        winning_options = [option for option in results['options'] if option['votes_count'] == max_votes]
+        if len(winning_options) > 1:
+            print("Tie detected!")
+            # Handle tie situation (e.g., choose randomly or keep the current direction)
+            self.snakeGame.move()
+        else:
+            winning_option = winning_options[0]['title']
+            if winning_option == "⤴️ Turn Left":
+                self.snakeGame.turn("LEFT")
+            elif winning_option == "⤵️ Turn Right":
+                self.snakeGame.turn("RIGHT")
+            self.snakeGame.move()
+            # Check if the snake has died
+            if not self.snakeGame.alive:
+                print("Game over!")
+
+
+
+class PollExpired(Exception):
+    pass
 
 class PollListener(StreamListener):
     def __init__(self, expected_status_id):
         self.expected_status_id = expected_status_id
+        self.result = None
 
     def on_notification(self, notification):
         if notification['type'] == 'poll':
             poll_status_id = notification['status']['id']
             if str(poll_status_id) == str(self.expected_status_id):
-                print("Poll expired. Options:")
+                print("Poll expired.")
                 for option in notification['status']['poll']['options']:
                     print(f"{option['title']}: {option['votes_count']} votes")
-                # You could trigger further game logic here
-
+                self.result = notification['status']['poll']
+                raise PollExpired  # To stop the stream
 
 messager = Messager()
