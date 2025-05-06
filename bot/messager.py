@@ -7,7 +7,6 @@ class Messager:
         # Load environment variables from .env file and log in to Mastodon
         load_dotenv()
         self.initData = json.load(open('config.json'))
-        print(os.environ.get("secret"))
         self.mastodon = Mastodon(
             access_token=os.getenv("secret"),
             api_base_url=self.initData["instance"]
@@ -36,9 +35,7 @@ class Messager:
             else:
                 print("A game is already happening!")
                 self.statusId = self.gameStatus.id
-
-                #Edit the status with the current game state
-                self.mastodon.status_update("Vote below to play Snake!\n"+self.snakeGame.display(), visibility=self.initData["visibility"], poll=self.gameStatus.poll, id=self.statusId)
+                self.updateGameStatus()
             print ("Game status ID: " + str(self.statusId))
 
             results = self.waitAndGetPollResult()
@@ -75,6 +72,14 @@ class Messager:
         status = self.mastodon.status_post("Vote below to play Snake!\n"+self.snakeGame.display(), visibility=self.initData["visibility"], poll=poll) #TODO edit this
         self.statusId = status.id
         return status.id
+    
+    def updateGameStatus(self):
+        # Update the game status with the current game state
+        poll = self.mastodon.make_poll(
+            options=["⤴️ Turn Left", "➡️ Go Forward", "⤵️ Turn Right"],
+            expires_in=self.delay
+        )
+        self.mastodon.status_update(status="Vote below to play Snake!\n"+self.snakeGame.display(), poll=poll, id=self.statusId)
     
     def waitAndGetPollResult(self):
         listener = PollListener(self.statusId)
