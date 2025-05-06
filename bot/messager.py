@@ -38,7 +38,7 @@ class Messager:
                 self.statusId = self.gameStatus.id
 
                 #Edit the status with the current game state
-                self.mastodon.status_post("Vote below to play Snake!\n"+self.snakeGame.display(), visibility=self.initData["visibility"], poll=self.gameStatus.poll, id=self.statusId)
+                self.mastodon.status_update("Vote below to play Snake!\n"+self.snakeGame.display(), visibility=self.initData["visibility"], poll=self.gameStatus.poll, id=self.statusId)
             print ("Game status ID: " + str(self.statusId))
 
             results = self.waitAndGetPollResult()
