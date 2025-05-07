@@ -1,5 +1,3 @@
-# WORK IN PROGRESS!!
-
 # Mastodon plays snake
 Source code for a bot that lets you play snake on Mastodon!
 
@@ -42,3 +40,5 @@ Finally run the `messager.py` file inside the `/bot` folder. This will start the
 
 ## Troubleshooting
  - `mastodon.errors.MastodonNotFoundError` : This means that the bot is trying to access a message that doesn't exist. This can happen if you delete the message or if the bot is trying to access a message that was never created. To fix this, delete the `statusID` field's value (usually a number) in the `config.json` file, leave only empty quotes.
+
+ <a rel="me" href="https://mstdn.social/@snakebot"></a><a rel="me" href="https://furries.club/@helloyanis"></a>

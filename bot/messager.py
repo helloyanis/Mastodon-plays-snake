@@ -114,7 +114,8 @@ class Messager:
             # If there are no fields or too few, initialize them
             newFields = [
                 ("Games started", str(games_started_change)),
-                ("Total fruits eaten", str(fruits_eaten_change))
+                ("Total fruits eaten", str(fruits_eaten_change)),
+                ("Source code", "https://github.com/helloyanis/Mastodon-plays-snake")
             ]
         else:
             # Parse existing values
@@ -122,7 +123,8 @@ class Messager:
             previousFruitsEaten = int(oldFields[1]["value"])
             newFields = [
                 ("Games started", str(previousGamesStarted + games_started_change)),
-                ("Total fruits eaten", str(previousFruitsEaten + fruits_eaten_change))
+                ("Total fruits eaten", str(previousFruitsEaten + fruits_eaten_change)),
+                ("Source code", "https://github.com/helloyanis/Mastodon-plays-snake")
             ]
 
         self.mastodon.account_update_credentials(fields=newFields)
