@@ -16,7 +16,6 @@ In your user settings, check `This is a bot account`, then go to `applications` 
 
 Below, there are some boxes you'll need to check to give the bot permissions. You'll need :
 
-- `read:notifications` to get notified when a poll ends
 - `read:statuses` to read the poll's votes
 - `profile` to read the account's fields (for the amount of games started and fruits eaten)
 - `write:accounts` to update the account's fields (for the amount of games started and fruits eaten)
