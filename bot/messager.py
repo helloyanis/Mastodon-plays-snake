@@ -1,6 +1,6 @@
 from mastodon import Mastodon, StreamListener
 from dotenv import load_dotenv
-import json, os
+import json, os, time, copy
 from snakeGame import SnakeGame
 class Messager:
     def __init__(self):
@@ -19,6 +19,7 @@ class Messager:
         self.statusVisibility = self.initData["visibility"]
         self.delay = self.initData["delay"]
         self.snakeGame = SnakeGame(width=10, height=10, initial_length=3, modifiers=None, save_file="snake_game.json")
+        self.fruits_eaten = copy(SnakeGame.fruits_eaten)
 
         while True:
             #Start the game if it is not already started
@@ -66,7 +67,7 @@ class Messager:
     def sendNewGameStatus(self):
         # Send a new game status to the Mastodon instance
         poll = self.mastodon.make_poll(
-            options=["⤴️ Turn Left", "➡️ Go Forward", "⤵️ Turn Right"],
+            options=["Turn left", "Go forward", "Turn right"],
             expires_in=self.delay
         )
         status = self.mastodon.status_post("Vote below to play Snake!\n"+self.snakeGame.display(), visibility=self.initData["visibility"], poll=poll) #TODO edit this
@@ -74,21 +75,37 @@ class Messager:
         return status.id
     
     def updateGameStatus(self):
+        # Check if the snake has eaten a fruit and update the profile fields accordingly
+        if self.snakeGame.fruits_eaten > self.fruits_eaten:
+            self.updateProfileFields(games_started_change=0, fruits_eaten_change=self.snakeGame.fruits_eaten - self.fruits_eaten)
+            self.fruits_eaten = self.snakeGame.fruits_eaten
         # Update the game status with the current game state
         poll = self.mastodon.make_poll(
-            options=["⤴️ Turn Left", "➡️ Go Forward", "⤵️ Turn Right"],
+            options=["Turn left", "Go forward", "Turn right"],
             expires_in=self.delay
         )
-        self.mastodon.status_update(status="Vote below to play Snake!\n"+self.snakeGame.display(), poll=poll, id=self.statusId)
+        if not self.snakeGame.alive:
+            # If the snake is dead, end the game and update the status
+            self.mastodon.status_update(status="💥 Game over! The snake has died. I started a new game, check on my profile!\n"+self.snakeGame.display(), id=self.statusId, poll=poll)
+            # Delete the snake_game.json file to reset the game
+            os.remove("snake_game.json")
+            self.snakeGame = SnakeGame(width=10, height=10, initial_length=3, modifiers=None, save_file="snake_game.json")
+            return
+        else:
+            self.mastodon.status_update(status="Votes are closed, I have updated the game state and posted a new poll! Check on my profile.\n"+self.snakeGame.display(), id=self.statusId, poll=poll)
+        newStatus = self.mastodon.status_post(status="📊 Vote below to play Snake! 🐍\n"+self.snakeGame.display(), poll=poll)
+        # Update the status ID in the config file
+        self.initData["statusId"] = newStatus.id
+        with open('config.json', 'w') as f:
+            json.dump(self.initData, f, indent=4)
+
     
     def waitAndGetPollResult(self):
-        listener = PollListener(self.statusId)
-        print("Listening for poll expiration...")
-        try:
-            self.mastodon.stream_user(listener)
-        except PollExpired:
-            return listener.result
-        return None
+        print("Waiting for poll to expire...")
+        time.sleep(self.delay + 5)  # Wait for the poll to expire
+        # Get the poll results
+        poll = self.mastodon.status(id=self.statusId)["poll"]
+        return poll
 
     def updateProfileFields(self, games_started_change=1, fruits_eaten_change=0):
         # Get the current fields
@@ -124,33 +141,14 @@ class Messager:
             self.snakeGame.move()
         else:
             winning_option = winning_options[0]['title']
-            if winning_option == "⤴️ Turn Left":
+            if winning_option == "Turn left":
                 self.snakeGame.turn("LEFT")
-            elif winning_option == "⤵️ Turn Right":
+            elif winning_option == "Turn right":
                 self.snakeGame.turn("RIGHT")
-            self.snakeGame.move()
-            # Check if the snake has died
-            if not self.snakeGame.alive:
-                print("Game over!")
-
-
-
-class PollExpired(Exception):
-    pass
-
-class PollListener(StreamListener):
-    def __init__(self, expected_status_id):
-        self.expected_status_id = expected_status_id
-        self.result = None
-
-    def on_notification(self, notification):
-        if notification['type'] == 'poll':
-            poll_status_id = notification['status']['id']
-            if str(poll_status_id) == str(self.expected_status_id):
-                print("Poll expired.")
-                for option in notification['status']['poll']['options']:
-                    print(f"{option['title']}: {option['votes_count']} votes")
-                self.result = notification['status']['poll']
-                raise PollExpired  # To stop the stream
+            else:
+                self.snakeGame.move()
+        # Check if the snake has died
+        if not self.snakeGame.alive:
+            print("Game over!")
 
 messager = Messager()

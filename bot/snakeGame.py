@@ -28,6 +28,7 @@ class SnakeGame:
         self.initial_length = initial_length
         self.modifiers = modifiers or {"wrap_edges": False}
         self.save_file = save_file
+        self.fruits_eaten = 0
 
         if os.path.exists(save_file):
             self.load()
@@ -50,7 +51,8 @@ class SnakeGame:
             "direction": self.direction,
             "alive": self.alive,
             "fruit": self.fruit,
-            "modifiers": self.modifiers
+            "modifiers": self.modifiers,
+            "fruits_eaten": self.fruits_eaten
         }
         with open(self.save_file, 'w') as f:
             json.dump(state, f)
@@ -65,6 +67,7 @@ class SnakeGame:
             self.alive = state["alive"]
             self.fruit = tuple(state["fruit"])
             self.modifiers = state.get("modifiers", {"wrap_edges": False})
+            self.fruits_eaten = state.get("fruits_eaten", 0)
 
     def display(self):
         board = [[self.EMOJI_EMPTY for _ in range(self.width)] for _ in range(self.height)]
@@ -113,6 +116,7 @@ class SnakeGame:
         self.snake.append(new_head)
 
         if new_head == self.fruit:
+            self.fruits_eaten += 1
             self.spawn_fruit()
         else:
             self.snake.pop(0)
