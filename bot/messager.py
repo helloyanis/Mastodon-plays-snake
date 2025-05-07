@@ -16,6 +16,7 @@ class Messager:
             print("Stream is not healthy! Try restarting in a few minutes (previous stream might still be connected?!).")
             return
         self.statusId = None
+        self.oldStatus = None
         self.statusVisibility = self.initData["visibility"]
         self.delay = self.initData["delay"]
         self.snakeGame = SnakeGame(width=10, height=10, initial_length=3, modifiers=None, save_file="snake_game.json")
@@ -40,8 +41,6 @@ class Messager:
             print ("Game status ID: " + str(self.statusId))
 
             results = self.waitAndGetPollResult()
-            # Update the game state based on the poll results
-            self.updateProfileFields(games_started_change=1, fruits_eaten_change=0)
             if results is not None:
                 self.moveSnake(results)
                 
@@ -87,6 +86,9 @@ class Messager:
         if not self.snakeGame.alive:
             # If the snake is dead, end the game and update the status
             self.mastodon.status_update(status="💥 Game over! The snake has died. I started a new game, check on my profile!\n"+self.snakeGame.display(), id=self.statusId, poll=poll)
+
+            self.oldStatus = copy.copy(self.statusId)
+
             # Delete the snake_game.json file to reset the game
             os.remove("snake_game.json")
             self.snakeGame = SnakeGame(width=10, height=10, initial_length=3, modifiers=None, save_file="snake_game.json")
@@ -104,7 +106,11 @@ class Messager:
         print("Waiting for poll to expire...")
         time.sleep(self.delay + 5)  # Wait for the poll to expire
         # Get the poll results
-        poll = self.mastodon.status(id=self.statusId)["poll"]
+        if self.oldStatus is not None:
+            id = self.oldStatus.id
+        else:
+            id = self.statusId
+        poll = self.mastodon.status(id=id)["poll"]
         return poll
 
     def updateProfileFields(self, games_started_change=1, fruits_eaten_change=0):
@@ -137,10 +143,11 @@ class Messager:
         # Get the direction with the most votes
         max_votes = max(option['votes_count'] for option in results['options'])
         winning_options = [option for option in results['options'] if option['votes_count'] == max_votes]
+        print(f"Winning options: {winning_options}")
         if len(winning_options) > 1:
             print("Tie detected!")
             # Handle tie situation (e.g., choose randomly or keep the current direction)
-            self.snakeGame.move()
+            self.snakeGame.turn("FORWARD")
         else:
             winning_option = winning_options[0]['title']
             if winning_option == "Turn left":
@@ -148,7 +155,7 @@ class Messager:
             elif winning_option == "Turn right":
                 self.snakeGame.turn("RIGHT")
             else:
-                self.snakeGame.move()
+                self.snakeGame.turn("FORWARD")
         # Check if the snake has died
         if not self.snakeGame.alive:
             print("Game over!")
