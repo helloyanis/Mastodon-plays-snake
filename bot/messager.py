@@ -19,7 +19,7 @@ class Messager:
         self.statusVisibility = self.initData["visibility"]
         self.delay = self.initData["delay"]
         self.snakeGame = SnakeGame(width=10, height=10, initial_length=3, modifiers=None, save_file="snake_game.json")
-        self.fruits_eaten = copy(SnakeGame.fruits_eaten)
+        self.fruits_eaten = copy.copy(self.snakeGame.fruits_eaten)
 
         while True:
             #Start the game if it is not already started
